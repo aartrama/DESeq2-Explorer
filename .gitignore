@@ -1,0 +1,9 @@
+.DS_Store
+.RData
+.Rhistory
+CFA_vs_Naive_in_KO.txt
+CFA_vs_Naive_in_WT.txt
+RPKM_values.txt
+htseq_counts_matrix.txt
+interaction.txt
+metadata_wo_outlier.txt

@@ -1,0 +1,128 @@
+---
+output: html_document
+runtime: shiny
+---
+
+```{r, echo = FALSE}
+
+  library(shiny)  
+  library(DESeq2)
+  library(stringr)
+  library(dplyr)
+  library(ggplot2)
+  library(plotly)
+  library(biomaRt)
+  source("helper_functions.r")
+  
+  counts <- read.table("htseq_counts_matrix.txt", sep="\t", header=T)
+  counts$X <- make.names(counts$X, unique=T)
+  row.names(counts) <- counts$X
+  counts <- subset(counts, select=-c(`X`))
+  coldata <- read.table("metadata_wo_outlier.txt", sep="\t", header=T, row.names=1)
+  
+  coldata$Genotype <- str_replace(coldata$Genotype, "RGS20_", "") 
+  counts <- counts[rowSums(counts >= 1) >= 2, ]
+
+  all(rownames(coldata) %in% colnames(counts))
+  counts = counts[, rownames(coldata)]
+  all(rownames(coldata) == colnames(counts))
+
+  dds <- DESeqDataSetFromMatrix(countData = counts, colData = coldata, design = ~ Genotype + Treatment + Genotype:Treatment)
+
+  dds$Treatment <- relevel(dds$Treatment, 'Naive')
+  dds$Genotype <- relevel(dds$Genotype, 'WT')
+
+  dds <- DESeq(dds)
+  
+  annotation <- GetAnnotationFromBiomart("mm10")
+  
+  interaction <- ExtractDifferentialListsMultiFactor("interaction.txt", "GenotypeKO.TreatmentCFA") 
+  CFA_vs_Naive_in_WT <- ExtractDifferentialListsMultiFactor("CFA_vs_Naive_in_WT.txt", "Treatment_CFA_vs_Naive") 
+  CFA_vs_Naive_in_KO <- ExtractDifferentialListsMultiFactor("CFA_vs_Naive_in_KO.txt", "Treatment_CFA_vs_Naive", "GenotypeKO.TreatmentCFA") 
+  
+```
+
+
+
+```{r}
+UnderstandInteraction <- function(dds, interaction_list) {
+
+  shinyApp(
+    ui <- fluidPage(
+      
+      fluidRow(style = "padding-bottom: 20px;",
+        column(4, selectInput('gene_of_interest', 'Choose a gene:', interaction_list$gene_name))),
+      
+      fluidRow(
+        plotOutput('ggplot_img', height = "400px")),
+      
+      fluidRow(
+        span(textOutput('padj'), style="font-size:16px; font-style: bold")),
+      
+      fluidRow(
+        span(textOutput('description'), style="font-size:16px; font-style: bold")
+      )
+    ),
+    
+
+    server <- function(input, output, session) {
+
+      selectedData = reactive({
+        gene_ID <- row.names(interaction[interaction$gene_name == input$gene_of_interest, ])
+        exp_gene <- plotCounts(dds, gene=gene_ID, returnData = T, intgroup = 'Treatment')
+        
+        exp_for_group <- function(groupname) {
+            
+            samples_in_grp <- row.names(colData(dds)[colData(dds)$Genotype == groupname, ])
+            group_exp <- exp_gene[samples_in_grp, ]
+            group_exp$group_name <- rep(groupname, nrow(group_exp))
+            group_exp
+        }
+        
+        exp_gene <- rbind(exp_for_group("WT"), exp_for_group("KO"))
+      })
+      
+      p_adj_interaction_react = reactive({
+            p_adj_interaction <- interaction_list[interaction_list$gene_name == input$gene_of_interest, ]$padj
+            p_adj_interaction <- round(p_adj_interaction, 3)
+            p_adj_interaction
+      })
+
+      description_of_gene <- reactive({
+        desc <- interaction_list[interaction_list$gene_name == input$gene_of_interest,]$description
+        desc
+      })
+      
+      output$ggplot_img = renderPlot(height = 400, {
+        
+        ggplot(selectedData(), aes(x=Treatment, y=count, color=Treatment)) +
+          geom_point(size=3) + 
+          theme_linedraw(base_size = 18) +
+          ylab("Normalized Expression") +
+          facet_grid(. ~ factor(group_name, levels=c("WT", "KO"))) +
+          expand_limits(y = 0) +
+          stat_summary(
+            fun = median,
+            geom = "line",
+            color="black",
+            aes(group=group_name), position = position_dodge(width=0.9)
+          )
+      })
+      
+      output$padj <- renderText(
+        glue::glue("Significance ( p-adj ): {p_adj_interaction_react()} ")
+      )
+        
+      output$description <- renderText(
+        glue::glue("Description: {description_of_gene()} ")
+      )
+      
+    }
+  )
+}
+
+UnderstandInteraction(dds, interaction)
+```
+
+
+
