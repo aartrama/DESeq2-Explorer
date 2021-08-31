@@ -19,18 +19,16 @@ def integrate_up_down_csv_files_into_excel(outfilename):
 def parse_diff_list_table(filename, which_p_value):
     """
     This script is for parsing 
-    diff_list_table_lucy.tsv
+    diff_list_table.tsv
     to get a better understanding 
-    of 'interaction' and 
+    of interaction term and 
     multifactor design analysis.
     """
-    type_of_genes = {"up_up": [], \
-                    "down_down": [], \
-                    "down_up": [], \
-                    "up_down": []}
+    type_of_genes = {"up_up": [], "down_down": [], "down_up": [], "up_down": []}
 
     header = " "
 
+    # Get header
     with open(filename, "r") as f:
         for lines in f:
             lines = lines.strip().split("\t")
@@ -41,7 +39,6 @@ def parse_diff_list_table(filename, which_p_value):
         next(f)
         for lines in f:
             lines = lines.strip().split("\t")
-
             gene = lines[0].split(",")[0]
 
             logfc1 = 0 if lines[1] == "NA" else float(lines[1])
@@ -56,7 +53,6 @@ def parse_diff_list_table(filename, which_p_value):
                                             header[4], header[6], header[7]])
 
             elif which_p_value == "padj":
-
                 pvalue1 = 1 if lines[3] == "NA" else float(lines[3])
                 pvalue2 = 1 if lines[6] == "NA" else float(lines[6])
                 interaction_pvalue = 1 if lines[9] == "NA" else float(lines[9])
@@ -83,3 +79,5 @@ def parse_diff_list_table(filename, which_p_value):
             outfile.write(newfile_header+"\n")
             for gene in type_of_genes[key]: 
                 outfile.write(",".join(gene)+"\n")
+
+    return(type_of_genes)

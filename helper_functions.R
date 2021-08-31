@@ -104,12 +104,7 @@ GeneratePCA <- function(filename, group1, group2=NULL) {
 }
 
 ObtainNormalizedCounts <- function() {
-  annotation <- GetAnnotationFromBiomart(species)
   data_normalized = counts(dds, normalized = T)
-  annotation <- annotation[rownames(data_normalized), ]
-  all(rownames(annotation) == rownames(data_normalized))
-  data_normalized <- cbind(Gene.name=annotation$external_gene_name, data_normalized)
-  write.table(data_normalized, file = "normalized_expression.txt", sep = "\t", quote = F, col.names = NA)
   return(data.frame(data_normalized))
 }
 
@@ -141,7 +136,7 @@ ObtainPvalueLogfcDESeq2 <- function(difflist) {
 
 RunMultiFactor <- function(WT_list, KO_list, interaction_list, outfile_tsv, pval_or_padj, final_outfile_xlsx) {
 
-    use_python("/usr/bin/python3", required=T)
+    use_python("/Users/aarthi/miniconda3/bin/python3", required=T)
     py_config()
     source_python("helper_functions.py")
 
