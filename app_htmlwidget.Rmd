@@ -100,53 +100,59 @@ runtime: shiny
 
 
 ```{r, echo = FALSE}
-UnderstandInteraction <- function(interaction_list, norm_counts, coldata) {
+UnderstandInteraction <- function(interaction_list, normalized_counts, metadata) {
 
   shinyApp(
               ui <- fluidPage(
                 
-                fluidRow(
-                  selectInput('gene_of_interest', 'Choose gene:', choices=interaction$gene_name,
-                              multiple=TRUE, selected=c("Pde1a"))
+                fluidRow(column(4,
+                  selectizeInput('gene_of_interest', 'Choose gene:', 
+                              choices=NULL,
+                              multiple=TRUE, 
+                              selected=c("Ttr", "Rgs22")))
                 ),
                 
                 fluidRow(
                   plotOutput('ggplot_img', height = "450px"),
-                ),
-                
-                fluidRow(
-                  span(textOutput('padj'), style="font-size:16px; font-style: bold"),
-                  span(textOutput('description'), style="font-size:16px; font-style: bold"))
+                )
               ),
     
 
     server <- function(input, output, session) {
-
+      updateSelectizeInput(session, 'gene_of_interest', choices=interaction_list$gene_name, server=TRUE)
+      
                 selectedData = reactive({
-                  gene_ID <- row.names(interaction[interaction$gene_name %in% input$gene_of_interest, ])
-                  exp_test_gene <- norm_counts[row.names(norm_counts) %in% gene_ID, ]
+                  validate(need(input$gene_of_interest, "Please select a gene."))
+                  
+                  gene_ID <- row.names(interaction_list[interaction_list$gene_name %in% input$gene_of_interest, ])
+                  exp_test_gene <- normalized_counts[row.names(normalized_counts) %in% gene_ID, ]
                   exp_test_gene <- t(as.data.frame(exp_test_gene))
-                  if (all(row.names(coldata) == row.names(exp_test_gene))) {
-                    exp_test_gene <- melt(cbind(exp_test_gene, coldata))
+                  
+                  if (all(row.names(metadata) == row.names(exp_test_gene))) {
+                    
+                    exp_test_gene <- melt(cbind(exp_test_gene, metadata))
+                    
                   } else {
-                    break
+                    
+                    stop("Samples in metadata do not match samples in Normalized counts")
+                    
                   }
                   exp_test_gene
                   
                 })
                 
                 gene_ids <- reactive({
-                    dose.labs <- input$gene_of_interest
-                    names(dose.labs) <- row.names(interaction[interaction$gene_name %in% input$gene_of_interest, ])
-                    dose.labs
+                    gene.name <- input$gene_of_interest
+                    names(gene.name) <- row.names(interaction_list[interaction_list$gene_name %in% input$gene_of_interest, ])
+                    gene.name
                   })
                 
                 output$ggplot_img <- renderPlot(
                   
                   ggplot(selectedData(), aes(x=Treatment, y=value, color=Treatment)) +
                     geom_point(size=3) + 
-                    theme_linedraw(base_size = 18) +
-                    ylab("Normalized Expression") +
+                    theme_linedraw(base_size = 18) + 
+                    ylab("Normalized Expression") + 
                     facet_grid( variable ~ factor(Genotype, levels=c("WT", "KO")), labeller = labeller(variable = gene_ids())) +
                     expand_limits(y = 0) +
                     stat_summary(
@@ -162,13 +168,12 @@ UnderstandInteraction <- function(interaction_list, norm_counts, coldata) {
   )
   
 }
-```
-
-
-```{r}
 interaction_widget <- UnderstandInteraction(interaction, norm_counts, coldata)
 interaction_widget
 ```
+
+
+
 
 
 
