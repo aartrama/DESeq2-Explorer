@@ -1,105 +1,39 @@
 library(shiny)
-library(DESeq2)
-library(stringr)
-library(dplyr)
 library(ggplot2)
 library(reshape2)
-library(plotly)
-library(biomaRt)
 
-# required functions
-GetAnnotationFromBiomart <- function(species) {
-  if (species == "hg38") {
-    dataset="hsapiens_gene_ensembl"
-  } else if (species == "mm10") {
-    dataset="mmusculus_gene_ensembl"
-  } else if (species == "rn6") {
-    dataset="rnorvegicus_gene_ensembl"
-  }
-  mart <- useMart(biomart="ENSEMBL_MART_ENSEMBL", dataset=dataset, host="aug2017.archive.ensembl.org")
-  annotation_biomart <- getBM(attributes = c("ensembl_gene_id","external_gene_name","chromosome_name","start_position",
-                                             "end_position", "gene_biotype", "description"),
-                              filters = "ensembl_gene_id", values = rownames(dds), mart = mart)
-  rownames(annotation_biomart) <- annotation_biomart$ensembl_gene_id
-  annotation_biomart <- subset(annotation_biomart, select=c(-`ensembl_gene_id`))
-  return(annotation_biomart)
-}
-
-AnnotateDifflist <- function(annotations, difflist) {
-  annotations <- annotations[rownames(difflist), ]
-  print(all(rownames(annotations) == rownames(difflist)))
-  annot_difflist <- cbind(difflist, annotations)
-  annot_difflist <- subset(annot_difflist, select=c(7,1,2,3,4,5,6,8,9,10,11,12))
-  colnames(annot_difflist) <- c("gene_name", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue",
-                                "padj", "chromosome", "gene_start",
-                                "gene_end", "gene_type", "description")
-  return(annot_difflist)
-}
-
-ExtractDifferentialListInteraction <- function(termname) {
-  difflist <- results(dds, name=termname)
-  difflist <- AnnotateDifflist(annotation, difflist)
-  difflist <- difflist[order(difflist$pvalue), ]
-  difflist$gene_id <- rownames(difflist)
-  difflist <- difflist[complete.cases(difflist), ]
-  return(difflist)
-}
-
-ObtainNormalizedCounts <- function() {
-  data_normalized = counts(dds, normalized = T)
-  return(data.frame(data_normalized))
-
-}
-
-
-
-counts <- read.table("htseq_counts_matrix.txt", sep="\t", header=T, row.names=1)
-coldata <- read.table("metadata_wo_outlier.txt", sep="\t", header=T, row.names=1)
-
-coldata$Genotype <- str_replace(coldata$Genotype, "RGS20_", "")
-counts <- counts[rowSums(counts >= 1) >= 2, ]
-
-all(rownames(coldata) %in% colnames(counts))
-counts = counts[, rownames(coldata)]
-all(rownames(coldata) == colnames(counts))
-
-dds <- DESeqDataSetFromMatrix(countData = counts, colData = coldata, design = ~ Genotype + Treatment + Genotype:Treatment)
-
-dds$Treatment <- relevel(dds$Treatment, 'Naive')
-dds$Genotype <- relevel(dds$Genotype, 'WT')
-
-dds <- DESeq(dds)
-
-annotation <- GetAnnotationFromBiomart("mm10")
-species="mm10"
-interaction <- ExtractDifferentialListInteraction("GenotypeKO.TreatmentCFA")
-norm_counts <- ObtainNormalizedCounts()
-coldata$Genotype <- relevel(factor(coldata$Genotype), ref="WT")
-coldata$Treatment <- relevel(factor(coldata$Treatment), ref="Naive")
-
+load("app_Input.RData")
 
 ui <- fluidPage(
   
-  fluidRow(column(4,
-                  selectizeInput('chosen_gene', 'Choose gene:', 
-                                 choices=NULL,
-                                 multiple=TRUE, 
-                                 selected=c("Ttr", "Rgs22")))
-  ),
+  titlePanel("CFA/Naive RGS20 WT/KO"),
   
-  fluidRow(
-    plotOutput('ggplot_img', height = "500px"),
-    tableOutput('table_output')
+  sidebarLayout(
+    
+    sidebarPanel(
+      selectizeInput('selected_gene', 'Choose gene:', choices=NULL, multiple=TRUE),
+      textOutput('padj_explanation'),
+    width=3),
+    
+    mainPanel(
+      plotOutput('ggplot_figure')
+    )
     
   )
 )
 
+
 server <- function(input, output, session) {
-  updateSelectizeInput(session, 'chosen_gene', choices=interaction$gene_name, server=TRUE)
+  updateSelectizeInput(session, 'selected_gene', choices=interaction$gene_name, server=TRUE)
+  
   factor_names <- colnames(coldata)
-  genes_of_interest <- reactive(input$chosen_gene)
+  condition_names <- levels(coldata[, factor_names[1]])
+  
+  genes_of_interest <- reactive(input$selected_gene)
   interaction_data <- reactive(interaction[interaction$gene_name %in% genes_of_interest(), ])
   geneIDs_of_interest <- reactive(row.names(interaction_data()))
+  
+  specify_decimal <- function(x, k) trimws(format(round(x, k), nsmall=k))
   
   selectedData <- reactive({ 
     validate(need(genes_of_interest(), "Please select a gene"))
@@ -123,8 +57,7 @@ server <- function(input, output, session) {
   
   
   gene_ids <- reactive({
-    specify_decimal <- function(x, k) trimws(format(round(x, k), nsmall=k))
-    gene.name <- paste0(genes_of_interest(), " (p-adj=", specify_decimal(interaction_data()$padj, 3), ")")
+    gene.name <- paste0(interaction_data()$gene_name, " (P-adj=", specify_decimal(interaction_data()$padj, 3), ")")
     names(gene.name) <- geneIDs_of_interest()
     gene.name
   })
@@ -134,7 +67,12 @@ server <- function(input, output, session) {
     return(number_of_genes * 300)
   })
   
-  output$ggplot_img <- renderPlot(
+  output$padj_explanation <- reactive({
+    validate(need(genes_of_interest(), " "))
+    glue::glue("* P-adj value represents the signficance of the gene's difference between {condition_names[1]} and {condition_names[2]}")
+    })
+
+  output$ggplot_figure <- renderPlot(
     
     ggplot(selectedData(), aes_string(x=factor_names[2], y="value", color=factor_names[2])) +
       geom_point(size=3) + 
@@ -142,9 +80,8 @@ server <- function(input, output, session) {
       ylab("Normalized Expression") + 
       facet_grid( reformulate( factor_names[1], "variable"), 
                   labeller = labeller(variable = gene_ids()), 
-                  scales="fixed") + 
+                  scales="free") + 
       expand_limits(y = 0) +
-      theme(legend.position="none") +
       stat_summary(
         fun = median,
         geom = "line",
@@ -157,4 +94,4 @@ server <- function(input, output, session) {
 }
 
 
-shinyApp(ui, server)
+shinyApp(ui, server) 
