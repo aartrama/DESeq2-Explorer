@@ -1,12 +1,21 @@
 library(shiny)
 library(ggplot2)
 library(reshape2)
+library(gtools)
 
 load("app_Input.RData")
 
+###### manually change this
+difflist1 <- CFA_vs_Naive_in_WT
+difflist2 <- CFA_vs_Naive_in_KO
+pvalue_or_padj <- 'pvalue'
+title_text <- "CFA/Naive RGS20 WT/KO"
+###### 
+
+
 ui <- fluidPage(
   
-  titlePanel("CFA/Naive RGS20 WT/KO"),
+  titlePanel(title_text),
   
   sidebarLayout(
     
@@ -33,8 +42,6 @@ server <- function(input, output, session) {
   interaction_data <- reactive(interaction[interaction$gene_name %in% genes_of_interest(), ])
   geneIDs_of_interest <- reactive(row.names(interaction_data()))
   
-  specify_decimal <- function(x, k) trimws(format(round(x, k), nsmall=k))
-  
   selectedData <- reactive({ 
     validate(need(genes_of_interest(), "Please select a gene"))
     
@@ -51,14 +58,33 @@ server <- function(input, output, session) {
       stop("Samples in coldata do not match samples in Normalized counts")
       
     }
+    subset_difflist1 <- difflist1[unique(exp_test_gene$variable), ]
+    subset_difflist2 <- difflist2[unique(exp_test_gene$variable), ]
+    exp_test_gene[, pvalue_or_padj] = rep(NA, nrow(exp_test_gene))
+    
+    for(g in unique(exp_test_gene$variable)) {
+      exp_test_gene[exp_test_gene[, factor_names[1]] == condition_names[1] & exp_test_gene$variable == g, ][, pvalue_or_padj] <- stars.pval(subset_difflist1[g, ][, pvalue_or_padj])
+      exp_test_gene[exp_test_gene[, factor_names[1]] == condition_names[2] & exp_test_gene$variable == g, ][, pvalue_or_padj] <- stars.pval(subset_difflist2[g, ][, pvalue_or_padj])
+    }
+    
     exp_test_gene
-    print(exp_test_gene)
+    
+  })
+  
+  indiv_pvalue_df <- reactive({
+    df <- data.frame(
+      Genotype=selectedData()[,factor_names[1]],
+      Treatment=selectedData()[,factor_names[2]],
+      variable=selectedData()[,'variable'],
+      label=selectedData()[, pvalue_or_padj])
+    
+    return(df)
     
   })
   
   
   gene_ids <- reactive({
-    gene.name <- paste0(interaction_data()$gene_name, " (P-adj=", specify_decimal(interaction_data()$padj, 3), ")")
+    gene.name <- paste0(interaction_data()$gene_name, " (", pvalue_or_padj, "=", signif(interaction_data()[, pvalue_or_padj], 3), ")")
     names(gene.name) <- geneIDs_of_interest()
     gene.name
   })
@@ -70,27 +96,33 @@ server <- function(input, output, session) {
   
   output$padj_explanation <- reactive({
     validate(need(genes_of_interest(), " "))
-    glue::glue("* P-adj value represents the signficance of the gene's difference between {condition_names[1]} and {condition_names[2]}")
+    glue::glue("* The {pvalue_or_padj} value next to the gene represents the signficance of the gene's difference between {condition_names[1]} and {condition_names[2]}")
   })
   
-  output$ggplot_figure <- renderPlot({
+  output$ggplot_figure <- renderPlot(
     
-    p <- ggplot(selectedData(), aes(Treatment, value)) + geom_point() 
-    p <- p + 
-      facet_grid( variable ~ Genotype) + 
+    ggplot(selectedData(), aes_string(x=factor_names[2], y="value", 
+                                      color=factor_names[2])) + geom_point() +
+    geom_point(size=3) +
+      theme_linedraw(base_size = 16) + 
+      facet_grid( reformulate( factor_names[1], "variable"), 
+                  labeller=labeller(variable=gene_ids()),
+                  scales="free") + 
+      ylab("Normalized Expression") +
+      stat_summary(
+        fun = median,
+        geom = "line",
+        color="black",
+        aes(group=factor_names[1]), 
+        position = position_dodge(width=0.9)) +
       geom_text(
-        data=data.frame( # make df reactive
-          Genotype=c("WT", "KO","WT", "KO"),
-          Treatment=c("CFA", "Naive","CFA", "Naive"),
-          variable=c("ENSMUSG00000061808", "ENSMUSG00000061808", "ENSMUSG00000031661", "ENSMUSG00000031661"),
-          label=c("2342342", "120", "adfd", "sfdsf")
-        ),
-        mapping = aes(x=Inf,y=Inf,label=label),
-        hjust   = 1.05,
-        vjust   = 1.5
-      )
-    print(p)
-    height = plotHeight })
+        data=indiv_pvalue_df() ,
+        mapping = aes(x=Inf, y=Inf, label=label), 
+        hjust   = 1.05, vjust   = 1.5,
+        color = 'black',
+        size=6
+      ),
+    height = plotHeight, res=96 )
   
 } 
 
