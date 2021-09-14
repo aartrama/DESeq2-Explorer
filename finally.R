@@ -10,7 +10,7 @@ difflist1 <- CFA_vs_Naive_in_WT
 difflist2 <- CFA_vs_Naive_in_KO
 pvalue_or_padj <- 'pvalue'
 title_text <- "CFA/Naive RGS20 WT/KO"
-###### 
+######
 
 
 ui <- fluidPage(
@@ -22,6 +22,8 @@ ui <- fluidPage(
     sidebarPanel(
       selectizeInput('selected_gene', 'Choose gene:', choices=NULL, multiple=TRUE),
       textOutput('padj_explanation'),
+      br(),
+      tableOutput("pval_legend"),
       width=3),
     
     mainPanel(
@@ -71,6 +73,14 @@ server <- function(input, output, session) {
     
   })
   
+  output$pval_legend <- renderTable({
+    validate(need(genes_of_interest(), " "))
+    df <- data.frame(star=c('***', '**', '*', '+', " "),
+                     range=c('0 - 0.001', '0.001 - 0.01', '0.01 - 0.05', '0.05 - 0.1', '0.1 - 1.0'))
+    colnames(df) <- c("Symbol", glue::glue("Range of {pvalue_or_padj}"))
+    df
+  })
+  
   indiv_pvalue_df <- reactive({
     df <- data.frame(
       Genotype=selectedData()[,factor_names[1]],
@@ -84,7 +94,7 @@ server <- function(input, output, session) {
   
   
   gene_ids <- reactive({
-    gene.name <- paste0(interaction_data()$gene_name, " (", pvalue_or_padj, "=", signif(interaction_data()[, pvalue_or_padj], 3), ")")
+    gene.name <- paste0(interaction_data()$gene_name, " (", signif(interaction_data()[, pvalue_or_padj], 3), ")")
     names(gene.name) <- geneIDs_of_interest()
     gene.name
   })
@@ -93,10 +103,10 @@ server <- function(input, output, session) {
     number_of_genes <- length(gene_ids())
     return(number_of_genes * 300)
   })
-  
+
   output$padj_explanation <- reactive({
     validate(need(genes_of_interest(), " "))
-    glue::glue("* The {pvalue_or_padj} value next to the gene represents the signficance of the gene's difference between {condition_names[1]} and {condition_names[2]}")
+    glue::glue("Note - Number next to the gene represents the {pvalue_or_padj} of the gene's difference between {condition_names[1]} and {condition_names[2]}")
   })
   
   output$ggplot_figure <- renderPlot(
@@ -114,10 +124,10 @@ server <- function(input, output, session) {
         geom = "line",
         color="black",
         aes(group=factor_names[1]), 
-        position = position_dodge(width=0.9)) +
+        position = position_dodge(width=0.9)) + 
       geom_text(
         data=indiv_pvalue_df() ,
-        mapping = aes(x=Inf, y=Inf, label=label), 
+        mapping = aes(x=1.5, y=Inf, label=label), 
         hjust   = 1.05, vjust   = 1.5,
         color = 'black',
         size=6
