@@ -36,7 +36,7 @@ AnnotateDifflist <- function(annotations=NULL, difflist=NULL) {
   return(annot_difflist)
 }
 
-ExtractDifferentialListsMultiFactor <- function(filename=NULL, var1=NULL, var2=NULL) {
+ExtractDifferentialListsMultiFactor <- function(var1=NULL, var2=NULL) {
   if (is.null(var2)) {
     difflist <- results(dds, name=var1)
     difflist <- AnnotateDifflist(annotation, difflist) 
@@ -61,8 +61,6 @@ ObtainNormalizedCounts <- function() {
 }
 
 
-
-
 counts <- read.table("htseq_counts_matrix.txt", sep="\t", header=T, row.names=1)
 coldata <- read.table("metadata_wo_outlier.txt", sep="\t", header=T, row.names=1)
 
@@ -83,11 +81,14 @@ dds <- DESeq(dds)
 annotation <- GetAnnotationFromBiomart("mm10")
 species="mm10"
 
-interaction <- ExtractDifferentialListsMultiFactor("interaction.txt", "GenotypeKO.TreatmentCFA")
+interaction <- ExtractDifferentialListsMultiFactor("GenotypeKO.TreatmentCFA")
 norm_counts <- ObtainNormalizedCounts()
 
 coldata$Genotype <- relevel(factor(coldata$Genotype), ref="WT")
 coldata$Treatment <- relevel(factor(coldata$Treatment), ref="Naive")
 
-save(interaction, norm_counts, coldata, file="app_Input.RData")
+CFA_vs_Naive_in_WT <- ExtractDifferentialListsMultiFactor("Treatment_CFA_vs_Naive")
+CFA_vs_Naive_in_KO <- ExtractDifferentialListsMultiFactor("Treatment_CFA_vs_Naive", "GenotypeKO.TreatmentCFA")
+
+save(interaction, norm_counts, coldata, CFA_vs_Naive_in_WT, CFA_vs_Naive_in_KO, file="app_Input.RData")
 

@@ -13,7 +13,7 @@ ui <- fluidPage(
     sidebarPanel(
       selectizeInput('selected_gene', 'Choose gene:', choices=NULL, multiple=TRUE),
       textOutput('padj_explanation'),
-    width=3),
+      width=3),
     
     mainPanel(
       plotOutput('ggplot_figure')
@@ -44,7 +44,7 @@ server <- function(input, output, session) {
     
     if (all(row.names(coldata) == row.names(exp_test_gene))) {
       
-      exp_test_gene <- melt(cbind(exp_test_gene, coldata))
+      exp_test_gene <- reshape2::melt(cbind(exp_test_gene, coldata))
       
     } else {
       
@@ -52,6 +52,7 @@ server <- function(input, output, session) {
       
     }
     exp_test_gene
+    print(exp_test_gene)
     
   })
   
@@ -70,28 +71,28 @@ server <- function(input, output, session) {
   output$padj_explanation <- reactive({
     validate(need(genes_of_interest(), " "))
     glue::glue("* P-adj value represents the signficance of the gene's difference between {condition_names[1]} and {condition_names[2]}")
-    })
-
-  output$ggplot_figure <- renderPlot(
+  })
+  
+  output$ggplot_figure <- renderPlot({
     
-    ggplot(selectedData(), aes_string(x=factor_names[2], y="value", color=factor_names[2])) +
-      geom_point(size=3) + 
-      theme_linedraw(base_size = 16) + 
-      ylab("Normalized Expression") + 
-      facet_grid( reformulate( factor_names[1], "variable"), 
-                  labeller = labeller(variable = gene_ids()), 
-                  scales="free") + 
-      expand_limits(y = 0) +
-      stat_summary(
-        fun = median,
-        geom = "line",
-        color="black",
-        aes(group=factor_names[1]), position = position_dodge(width=0.9)
-      ),
-    height = plotHeight, res= 96 )
+    p <- ggplot(selectedData(), aes(Treatment, value)) + geom_point() 
+    p <- p + 
+      facet_grid( variable ~ Genotype) + 
+      geom_text(
+        data=data.frame( # make df reactive
+          Genotype=c("WT", "KO","WT", "KO"),
+          Treatment=c("CFA", "Naive","CFA", "Naive"),
+          variable=c("ENSMUSG00000061808", "ENSMUSG00000061808", "ENSMUSG00000031661", "ENSMUSG00000031661"),
+          label=c("2342342", "120", "adfd", "sfdsf")
+        ),
+        mapping = aes(x=Inf,y=Inf,label=label),
+        hjust   = 1.05,
+        vjust   = 1.5
+      )
+    print(p)
+    height = plotHeight })
   
-  
-}
+} 
 
 
 shinyApp(ui, server) 
