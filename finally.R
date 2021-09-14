@@ -128,7 +128,7 @@ server <- function(input, output, session) {
       geom_text(
         data=indiv_pvalue_df() ,
         mapping = aes(x=1.5, y=Inf, label=label), 
-        hjust   = 1.05, vjust   = 1.5,
+        hjust   = 0.5, vjust= 8,
         color = 'black',
         size=6
       ),
