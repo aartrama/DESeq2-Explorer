@@ -1,21 +1,19 @@
-library(gtools)
 library(shiny)
-library(DESeq2)
 library(stringr)
 library(dplyr)
 library(ggplot2)
 library(reshape2)
-library(plotly)
-library(biomaRt)
+library(S4Vectors)
+library(parallel)
+library(BiocGenerics)
+library(stats4)
 
 ###### manually change this
-load("app_Input_ana.RData")
+load("app_Input.RData")
 ######
 
 
 ui <- fluidPage(
-  
-  titlePanel(project_title),
   
   sidebarLayout(
     
@@ -65,8 +63,8 @@ server <- function(input, output, session) {
     exp_test_gene[, pvalue_or_padj] = rep(NA, nrow(exp_test_gene))
     
     for(g in unique(exp_test_gene$variable)) {
-      exp_test_gene[exp_test_gene[, factor_names[1]] == condition_names[1] & exp_test_gene$variable == g, ][, pvalue_or_padj] <- stars.pval(subset_difflist1[g, ][, pvalue_or_padj])
-      exp_test_gene[exp_test_gene[, factor_names[1]] == condition_names[2] & exp_test_gene$variable == g, ][, pvalue_or_padj] <- stars.pval(subset_difflist2[g, ][, pvalue_or_padj])
+      exp_test_gene[exp_test_gene[, factor_names[1]] == condition_names[1] & exp_test_gene$variable == g, ][, pvalue_or_padj] <- makeStar(subset_difflist1[g, ][, pvalue_or_padj])
+      exp_test_gene[exp_test_gene[, factor_names[1]] == condition_names[2] & exp_test_gene$variable == g, ][, pvalue_or_padj] <- makeStar(subset_difflist2[g, ][, pvalue_or_padj])
     }
     
     exp_test_gene
@@ -75,8 +73,8 @@ server <- function(input, output, session) {
   
   output$pval_legend <- renderTable({
     validate(need(genes_of_interest(), " "))
-    df <- data.frame(star=c('***', '**', '*', '.', " "),
-                     range=c('0 - 0.001', '0.001 - 0.01', '0.01 - 0.05', '0.05 - 0.1', '0.1 - 1.0'))
+    df <- data.frame(star=c('***', '**', '*', 'N.S.'),
+                     range=c('0 - 0.001', '0.001 - 0.01', '0.01 - 0.05', '0.05 - 1.0'))
     colnames(df) <- c("Symbol", glue::glue("Range of {pvalue_or_padj}"))
     df
   })
@@ -91,6 +89,13 @@ server <- function(input, output, session) {
     return(df)
     
   })
+  
+  makeStar <- function(pval) {
+    star <- c('***', '**', '*', 'N.S.')
+    breaks <- c(0, 0.001, 0.01, 0.05, 1)
+    interval <- findInterval(pval, breaks)
+    star[interval]
+  }
   
   
   gene_ids <- reactive({
@@ -128,9 +133,9 @@ server <- function(input, output, session) {
       geom_text(
         data=indiv_pvalue_df() ,
         mapping = aes(x=1.5, y=Inf, label=label), 
-        hjust   = 0.5, vjust= 8,
+        hjust   = 0.5, vjust= 2,
         color = 'black',
-        size=6
+        size=4.5
       ),
     height = plotHeight, res=96 )
   

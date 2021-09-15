@@ -95,7 +95,6 @@ Vgult1cre_vs_Gad2cre_in_KO <- ExtractDifferentialListsMultiFactor("Celltype_Vgul
 difflist1 <- Vgult1cre_vs_Gad2cre_in_WT # _vs_ in WT
 difflist2 <- Vgult1cre_vs_Gad2cre_in_KO # _vs_ in KO
 pvalue_or_padj <- 'padj' # filter by 'pvalue' or 'padj'
-project_title <- "Vgult1cre/Gad2cre WT/KO in PFC" # title of project
 
-save(interaction, norm_counts, coldata, difflist1, difflist2, pvalue_or_padj, project_title, file="app_Input_ana.RData")
+save(interaction, norm_counts, coldata, difflist1, difflist2, pvalue_or_padj, file="app_Input_ana.RData")
 
