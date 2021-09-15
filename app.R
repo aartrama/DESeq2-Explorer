@@ -1,21 +1,21 @@
+library(gtools)
 library(shiny)
+library(DESeq2)
+library(stringr)
+library(dplyr)
 library(ggplot2)
 library(reshape2)
-library(gtools)
-
-load("app_Input.RData")
+library(plotly)
+library(biomaRt)
 
 ###### manually change this
-difflist1 <- CFA_vs_Naive_in_WT
-difflist2 <- CFA_vs_Naive_in_KO
-pvalue_or_padj <- 'pvalue'
-title_text <- "CFA/Naive RGS20 WT/KO"
+load("app_Input_ana.RData")
 ######
 
 
 ui <- fluidPage(
   
-  titlePanel(title_text),
+  titlePanel(project_title),
   
   sidebarLayout(
     
@@ -75,7 +75,7 @@ server <- function(input, output, session) {
   
   output$pval_legend <- renderTable({
     validate(need(genes_of_interest(), " "))
-    df <- data.frame(star=c('***', '**', '*', '+', " "),
+    df <- data.frame(star=c('***', '**', '*', '.', " "),
                      range=c('0 - 0.001', '0.001 - 0.01', '0.01 - 0.05', '0.05 - 0.1', '0.1 - 1.0'))
     colnames(df) <- c("Symbol", glue::glue("Range of {pvalue_or_padj}"))
     df

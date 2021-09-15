@@ -61,34 +61,41 @@ ObtainNormalizedCounts <- function() {
 }
 
 
-counts <- read.table("htseq_counts_matrix.txt", sep="\t", header=T, row.names=1)
-coldata <- read.table("metadata_wo_outlier.txt", sep="\t", header=T, row.names=1)
+counts <- read.table("./another_example/htseq_counts_matrix.txt", sep="\t", header=T, row.names=1)
+coldata <- read.table("./another_example/metadata.txt", sep="\t", header=T, row.names=1)
 
-coldata$Genotype <- str_replace(coldata$Genotype, "RGS20_", "")
+# coldata$Genotype <- str_replace(coldata$Genotype, "RGS20_", "")
 counts <- counts[rowSums(counts >= 1) >= 2, ]
 
 all(rownames(coldata) %in% colnames(counts))
 counts = counts[, rownames(coldata)]
 all(rownames(coldata) == colnames(counts))
 
-dds <- DESeqDataSetFromMatrix(countData = counts, colData = coldata, design = ~ Genotype + Treatment + Genotype:Treatment)
+dds <- DESeqDataSetFromMatrix(countData = counts, colData = coldata, design = ~ Genotype + Celltype + Genotype:Celltype)
 
-dds$Treatment <- relevel(dds$Treatment, 'Naive')
+dds$Celltype <- relevel(dds$Celltype, 'Gad2cre')
 dds$Genotype <- relevel(dds$Genotype, 'WT')
 
 dds <- DESeq(dds)
 
 annotation <- GetAnnotationFromBiomart("mm10")
 species="mm10"
-
-interaction <- ExtractDifferentialListsMultiFactor("GenotypeKO.TreatmentCFA")
+coldata <- subset(coldata, select=c("Genotype", "Celltype"))
+resultsNames(dds)
+interaction <- ExtractDifferentialListsMultiFactor("GenotypePS19.CelltypeVgult1cre")
 norm_counts <- ObtainNormalizedCounts()
 
+
 coldata$Genotype <- relevel(factor(coldata$Genotype), ref="WT")
-coldata$Treatment <- relevel(factor(coldata$Treatment), ref="Naive")
+coldata$Celltype <- relevel(factor(coldata$Celltype), ref="Gad2cre")
 
-CFA_vs_Naive_in_WT <- ExtractDifferentialListsMultiFactor("Treatment_CFA_vs_Naive")
-CFA_vs_Naive_in_KO <- ExtractDifferentialListsMultiFactor("Treatment_CFA_vs_Naive", "GenotypeKO.TreatmentCFA")
+Vgult1cre_vs_Gad2cre_in_WT <- ExtractDifferentialListsMultiFactor("Celltype_Vgult1cre_vs_Gad2cre")
+Vgult1cre_vs_Gad2cre_in_KO <- ExtractDifferentialListsMultiFactor("Celltype_Vgult1cre_vs_Gad2cre", "GenotypePS19.CelltypeVgult1cre")
 
-save(interaction, norm_counts, coldata, CFA_vs_Naive_in_WT, CFA_vs_Naive_in_KO, file="app_Input.RData")
+difflist1 <- Vgult1cre_vs_Gad2cre_in_WT # _vs_ in WT
+difflist2 <- Vgult1cre_vs_Gad2cre_in_KO # _vs_ in KO
+pvalue_or_padj <- 'padj' # filter by 'pvalue' or 'padj'
+project_title <- "Vgult1cre/Gad2cre WT/KO in PFC" # title of project
+
+save(interaction, norm_counts, coldata, difflist1, difflist2, pvalue_or_padj, project_title, file="app_Input_ana.RData")
 
