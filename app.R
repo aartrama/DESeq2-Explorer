@@ -14,6 +14,8 @@ load("app_Input.RData")
 
 
 ui <- fluidPage(
+
+  titlePanel(project_title),
   
   sidebarLayout(
     
