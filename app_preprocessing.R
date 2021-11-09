@@ -1,5 +1,6 @@
 library(shiny)
 library(DESeq2)
+library(DESeq2)
 library(stringr)
 library(dplyr)
 library(ggplot2)
